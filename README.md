@@ -1,5 +1,10 @@
 # dsh-ui-deepseek-balance
 
+[![npm version](https://img.shields.io/npm/v/dsh-ui-deepseek-balance.svg?color=blue)](https://www.npmjs.com/package/dsh-ui-deepseek-balance)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-ui-deepseek-balance.svg)](https://www.npmjs.com/package/dsh-ui-deepseek-balance)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![GitHub](https://img.shields.io/badge/GitHub-dsh--ui--deepseek--balance-181717?logo=github)](https://github.com/SeekerCodes/dsh-ui-deepseek-balance)
+
 A floating widget for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`) that shows your **DeepSeek account balance** and the **cost of the latest task** in real time (auto-refresh every 30 s).
 
 为 DeepSeek Harness (dsh) 提供的一个悬浮小组件：实时显示 **DeepSeek 账户余额** 与 **最近一次任务的花费**（每 30 秒自动刷新）。
