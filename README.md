@@ -44,6 +44,17 @@ Restart `dsh` (or let the user patch layer hot-reload). The floating card appear
 
 > Using a different profile? Replace `web` with your profile name. / 用其他 profile？把 `web` 换成你的 profile 名。
 
+## Verify / 验证
+
+Confirm you got the official package before installing — it should show `0.1.0 · MIT · zero dependencies` and the maintainer `seekercodes`:
+
+安装前确认你拿到的是官方包——应显示 `0.1.0 · MIT · 零依赖`，维护者 `seekercodes`：
+
+```bash
+npm view dsh-ui-deepseek-balance
+npm view dsh-ui-deepseek-balance dist.tarball
+```
+
 ## Compatibility / 兼容性
 
 - The widget mounts via `slots.inject('shell.overlay', …)`: on a dsh build that does not declare `shell.overlay`, it silently stays dormant — the page is unaffected (graceful degradation). / 组件通过 `slots.inject('shell.overlay', …)`) 挂载：在不声明 `shell.overlay` 的旧版 dsh 上会安静地不挂载，页面不受影响（优雅降级）。
