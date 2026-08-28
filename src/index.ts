@@ -1,24 +1,35 @@
 /**
  * DeepSeek 余额/成本数据服务（host half，独立发布版）。
  *
- * 启动一个仅监听 127.0.0.1 的微型 HTTP 服务（端口 3199，与 DSH GUI 分离）：
+ * 提供两个 GET JSON 端点：
  *  - GET /api/balance  读取 DEEPSEEK_API_KEY（环境变量，~/.zshrc 兜底）查询 DeepSeek 账户余额
  *  - GET /api/usage    读取 ~/.dsh/storages/session_projcache.json 中最近会话的 token 用量并折算费用
  *
- * browser half 的悬浮组件通过 fetch 消费这两个端点，浏览器侧不接触任何密钥；
- * 服务绑定回环地址 + CORS 允许任意来源（仅本机可达），随 dsh 启动自动运行。
- * 本包不依赖任何 @deepseek-ai 运行时包（零依赖），只在宿主进程内使用 Node 内置模块。
+ * 端点同时注册在两个出口，浏览器侧不接触任何密钥：
+ *  1) DSH 主 webServer 的同源路由（/api/balance、/api/usage）——浏览器/手机端（含 DSH
+ *     Pocket 等远程访问）走同一 origin，跨设备可用；
+ *  2) 回环微服务 127.0.0.1:3199（CORS 放开）——老版本浏览器端/独立部署的兜底路径。
+ * 本包不依赖任何 @deepseek-ai 运行时包（零依赖），webServer 以结构化子集类型接入。
  */
 import http from 'node:http'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { computeCost } from './cost.ts'
 import { fetchBalance } from './balance.ts'
 
-/** cordis 插件上下文的结构化子集（本插件只用到 effect 生命周期）。 */
+/** cordis 插件上下文的结构化子集（本插件只用 effect 生命周期与可选 webServer 路由注册）。 */
 export interface PluginContext {
   effect(fn: () => unknown, label?: string): void
+  /** DSH 主 webServer（同源 /api 路由注册点）；不存在时仅走 3199 回环兜底。 */
+  webServer?: {
+    register(route: {
+      kind: 'exact' | 'prefix'
+      path: string
+      handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>
+    }): () => void
+  }
 }
 
 /** 数据服务监听地址（仅回环，不暴露到局域网）。 */
@@ -77,16 +88,15 @@ export function lastUsage(): UsageTotals | null {
   return null
 }
 
-/** 统一的 JSON 响应（允许浏览器跨源读取；服务只绑定回环地址）。 */
-function json(res: http.ServerResponse, body: unknown): void {
+/** 统一的 JSON 响应（允许浏览器跨源读取；回环兜底服务只绑定本机）。 */
+function json(res: ServerResponse, body: unknown): void {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
   res.end(JSON.stringify(body))
 }
 
 /** 创建（未监听）数据服务：便于单测与 smoke 验证。 */
-export function createDataServer(): http.Server {
-  return http.createServer(async (req, res) => {
+async function handleData(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (req.method !== 'GET') { json(res, { ok: false, error: 'method not allowed' }); return }
     const key = apiKeyFromEnv()
     if (req.url === '/api/balance') {
@@ -115,14 +125,28 @@ export function createDataServer(): http.Server {
       return
     }
     json(res, { ok: false, error: 'not found' })
-  })
+}
+
+/** 创建（未监听）回环数据服务：便于单测与 smoke 验证。 */
+export function createDataServer(): http.Server {
+  return http.createServer(handleData)
 }
 
 /** Host 插件入口：随 dsh 启动数据服务，卸载时关闭。 */
 export function apply(ctx: PluginContext): void {
   ctx.effect(() => {
+    // 1) 主 webServer 同源路由：浏览器/手机端（含 DSH Pocket 远程访问）走同一 origin
+    const unregisters: Array<() => void> = []
+    if (ctx.webServer !== undefined) {
+      unregisters.push(ctx.webServer.register({ kind: 'exact', path: '/api/balance', handler: handleData }))
+      unregisters.push(ctx.webServer.register({ kind: 'exact', path: '/api/usage', handler: handleData }))
+    }
+    // 2) 回环微服务兜底：老版本浏览器端 / 独立部署
     const server = createDataServer()
     server.listen(PORT, HOST)
-    return () => { server.close() }
+    return () => {
+      for (const unregister of unregisters) unregister()
+      server.close()
+    }
   }, 'dsh-ui-deepseek-balance: host data server')
 }

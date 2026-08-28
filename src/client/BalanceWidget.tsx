@@ -43,7 +43,7 @@ const I18N = {
     expand: '展开 DeepSeek 余额/成本',
     collapse: '收起',
     unavailable: '数据服务不可用：',
-    hint: '请确认插件 host half 已随 harness 启动（127.0.0.1:3199）',
+    hint: '请确认插件 host half 已随 harness 启动（同源 /api 或 127.0.0.1:3199）',
   },
   en: {
     title: 'DeepSeek Balance',
@@ -55,20 +55,31 @@ const I18N = {
     expand: 'Expand DeepSeek balance / cost',
     collapse: 'Collapse',
     unavailable: 'Data service unavailable: ',
-    hint: 'Make sure the plugin host half is running with the harness (127.0.0.1:3199)',
+    hint: 'Make sure the plugin host half is running with the harness (same-origin /api or 127.0.0.1:3199)',
   },
 } as const
 
 const isZh = typeof navigator !== 'undefined' && navigator.language.toLowerCase().startsWith('zh')
 const T = isZh ? I18N.zh : I18N.en
 
-const BASE = 'http://127.0.0.1:3199'
+/** 兜底：老版本 host 半只起了 127.0.0.1:3199 回环微服务（仅本机浏览器可用）。 */
+const FALLBACK_BASE = 'http://127.0.0.1:3199'
 const REFRESH_MS = 30000
 
-async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url)
-  if (!res.ok) throw new Error('HTTP ' + String(res.status))
-  return await res.json() as T
+/**
+ * 同源优先（localhost / 局域网 IP / 隧道均可，手机端 DSH Pocket 远程访问也能用），
+ * 失败再回退回环微服务——兼容老版本 host 半。
+ */
+async function getJson<T>(path: string): Promise<T> {
+  try {
+    const res = await fetch(path)
+    if (res.ok) return await res.json() as T
+    throw new Error('HTTP ' + String(res.status))
+  } catch {
+    const res = await fetch(FALLBACK_BASE + path)
+    if (!res.ok) throw new Error('HTTP ' + String(res.status))
+    return await res.json() as T
+  }
 }
 
 const fmt = (n: number): string => n.toFixed(2)
@@ -89,8 +100,8 @@ export function BalanceWidget(): ReactElement {
     const refresh = async (): Promise<void> => {
       try {
         const [b, u] = await Promise.all([
-          getJson<BalanceData>(BASE + '/api/balance'),
-          getJson<UsageData>(BASE + '/api/usage'),
+          getJson<BalanceData>('/api/balance'),
+          getJson<UsageData>('/api/usage'),
         ])
         if (!alive) return
         setBalance(b)

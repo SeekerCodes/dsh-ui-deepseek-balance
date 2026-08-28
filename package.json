@@ -1,7 +1,7 @@
 {
   "name": "dsh-ui-deepseek-balance",
   "description": "DeepSeek balance & per-task cost floating widget for DeepSeek Harness (dsh) — shell.overlay plugin, loopback-only host data service.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "main": "lib/index.mjs",
   "types": "lib/index.d.mts",
